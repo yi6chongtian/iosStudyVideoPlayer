@@ -14,6 +14,10 @@
 
 @property (nonatomic,strong) NSMutableArray *videlList;
 
+@property (nonatomic,assign) AVPlayerViewController *playVC;
+
+@property (nonatomic,assign) UILabel *timeLabel;
+
 @end
 
 @implementation VideoListTableViewController
@@ -99,15 +103,59 @@
     AVPlayer *player = [AVPlayer playerWithURL:url];
     player.externalPlaybackVideoGravity = AVLayerVideoGravityResizeAspectFill;
     AVPlayerViewController *playVC = [[AVPlayerViewController alloc] init];
+    UILabel *timeLb = [UILabel new];
+    timeLb.textAlignment = NSTextAlignmentCenter;
+    timeLb.textColor = [UIColor greenColor];
+    timeLb.font = [UIFont systemFontOfSize:20];
+    timeLb.frame = CGRectMake(0, 64,self.view.bounds.size.width, 100);
+    timeLb.backgroundColor = [UIColor clearColor];
+    [playVC.contentOverlayView addSubview:timeLb];
+    self.timeLabel = timeLb;
+    self.playVC = playVC;
     playVC.showsPlaybackControls = YES;
     playVC.player = player;
-    [self presentViewController:playVC animated:YES completion:^{
+    
+    UINavigationController *navi = [[UINavigationController alloc] initWithRootViewController:playVC];
+    navi.navigationBar.hidden = YES;
+    playVC.navigationController.navigationBar.hidden = YES;
+    [self presentViewController:navi animated:YES completion:^{
         [player play];
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(pan:)];
+        [playVC.contentOverlayView addGestureRecognizer:pan];
+        [playVC.view addGestureRecognizer:pan];
     }];
-    //把AVPlayerViewController的view添加到UIViewController的view中
-    //[self.view addSubview:playVC.view];
-//    [[UIApplication sharedApplication].keyWindow addSubview:playVC.view];
-//    playVC.view.frame = [UIScreen mainScreen].bounds;
+}
+
+- (void)pan:(UIPanGestureRecognizer *)panGes{
+    NSLog(@"%s",__func__);
+    static NSInteger totalTime = 0;
+    if(self.playVC){
+        if(panGes.state == UIGestureRecognizerStateBegan){
+            self.timeLabel.hidden = NO;
+            totalTime = 0;
+        }else if (panGes.state == UIGestureRecognizerStateChanged){
+            AVPlayer *player = self.playVC.player;
+            CGPoint point = [panGes translationInView:panGes.view];
+            totalTime += point.x;
+            NSInteger currentTime = player.currentTime.value / player.currentTime.timescale;
+            CMTime time = CMTimeMake(currentTime + totalTime, 1);
+            [player seekToTime:time];
+            self.timeLabel.text = [self intToTime:time.value / time.timescale];
+        }else{
+            totalTime = 0;
+            [UIView animateWithDuration:0.5 animations:^{
+                self.timeLabel.hidden = YES;
+            }];
+        }
+        
+    }
+    [panGes setTranslation:CGPointZero inView:panGes.view];
+}
+
+- (NSString *)intToTime:(NSInteger)intTime{
+    NSInteger min = intTime / 60;
+    NSInteger second = intTime % 60;
+    return [NSString stringWithFormat:@"%zd:%zd",min,second];
 }
 
 #pragma mark - 播放通知
